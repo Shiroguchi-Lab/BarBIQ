@@ -1,0 +1,3 @@
+Sample	Conc.(copies/mg)	S.d
+Sample1	96300000	4700000
+Sample2	50400000	6900000

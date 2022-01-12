@@ -1,0 +1,8 @@
+>COTU-TEST-2001
+Bar-sequence-TEST-0084	Bacteria	1.0	Firmicutes	0.99	Clostridia	0.99	Clostridiales	0.99	Lachnospiraceae	0.99	Eisenbergiella	0.19
+Bar-sequence-TEST-0085	Bacteria	1.0	Firmicutes	1.0	Clostridia	1.0	Clostridiales	1.0	Lachnospiraceae	1.0	Eisenbergiella	0.2
+#Taxonomy:	Bacteria	1.0	Firmicutes	1.0	Clostridia	1.0	Clostridiales	1.0	Lachnospiraceae	1.0	Eisenbergiella	0.2	COTU-TEST-2001	0
+>COTU-TEST-2002
+Bar-sequence-TEST-0100	Bacteria	1.0	Firmicutes	1.0	Clostridia	1.0	Clostridiales	1.0	Lachnospiraceae	1.0	ClostridiumXlVa	0.61
+Bar-sequence-TEST-0101	Bacteria	1.0	Firmicutes	1.0	Clostridia	1.0	Clostridiales	1.0	Lachnospiraceae	1.0	ClostridiumXlVa	0.63
+#Taxonomy:	Bacteria	1.0	Firmicutes	1.0	Clostridia	1.0	Clostridiales	1.0	Lachnospiraceae	1.0	ClostridiumXlVa	0.63	COTU-TEST-2002	0

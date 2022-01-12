@@ -1,0 +1,299 @@
+###### This is a guideline for using the BarBIQ Pipeline ####
+
+####################################################################################################################
+<Introduction>
+The BarBIQ pipeline is for processing the sequencing data (Please note that this code only accept the Phred+33 quality system) obtained by BarBIQ method to identify Bar sequences (16S rRNA sequences) and cOTUs (cell-based taxa) and to quantify the identified cell numbers of each cOTU. 
+Most part of this pipeline is written in Perl (v5.22.1), and one step is written in R (version 3.5.1). 
+Author: Jianshi Jin
+Supervison: Katsuyuki Shiroguchi
+
+####################################################################################################################
+<Folder>
+BarBIQ_code: all custom codes used for BarBIQ data analysis;
+Demo: example data;
+Expected_output_files: expected output (only the output files used in the following steps are listed);
+
+####################################################################################################################
+<Notes>
+We use "██Run██:" to hint that the following is a command line to run the code.
+In command line, we use "{}" to hint that the command within "{}" is an option; we use "[]" to hint that the command within "[]" should be replaced by your own dataset's name, and don't include the "[]" for processing; We use "()" to hint that the content within "()" is the annotation, and don't include this part for processing.
+
+####################################################################################################################
+<System requirements>
+Required operation system:
+   Linux 64
+   The system we have tested: 
+      OS: Ubuntu (Version 16.04.6 or 16.04.7); 
+      CPU: Intel(R) Xeon(R) CPU E5-2630 v4 @ 2.20GHz, 64-bit, 40 cores;
+      Memory: 96G
+
+Required external softwares:
+   (1) Perl(tested v5.22.1; https://www.perl.org)
+       Required modules: 
+             IPC::System::Simple (Paul Fenwick)
+             Bio::SeqIO (Christopher Fields)
+             Bio::Seq (Christopher Fields)
+             Text::Levenshtein::XS (Nick Logan)
+             Text::WagnerFischer (Dree Mistrut)
+             List::Util (Graham Barr, Paul Evans)
+             Statistics::Basic (Paul Miller)
+             Excel::Writer::XLSX (John McNamara)
+             Math::round (Geoffrey Rommel)
+   (2) R (tested versions 3.5.1, 4.0.2, and 4.1.1; https://www.r-project.org) 
+       Required package:
+             plotrix (Lemon, J. (2006) Plotrix: a package in the red light district of R. R-News, 6(4): 8-12.)
+   (3) nucleotide-sequence-clusterizer (Version 0.0.7; http://kirill-kryukov.com/study/tools/nucleotide-sequence-clusterizer/)(Ogawa, T., Kryukov, K., Imanishi, T. & Shiroguchi, K. The efficacy and further functional advantages of random-base molecular barcodes for absolute and digital quantification of nucleic acid molecules. Sci. Rep. 7, 13576 (2017));
+   (4) bwa (version 0.7.15; http://bio-bwa.sourceforge.net)(Li H, Durbin R. Fast and accurate long-read alignment with Burrows-Wheeler transform. Bioinformatics. 26:589–595 (2010));
+   (5) RDP Classifier (http://rdp.cme.msu.edu/classifier/classifier.jsp)(Wang, Q, G. M. Garrity, J. M. Tiedje, and J. R. Cole. Naïve Bayesian Classifier for Rapid Assignment of rRNA Sequences into the New Bacterial Taxonomy. Appl Environ Microbiol. 73(16):5261-7 (2007)).
+
+There is no other required non-standard hardware.
+
+####################################################################################################################
+<16S rRNA sequence database requirements>
+    At least one is required
+   (1)Silva database (http://www.arb-silva.de/): we used version 123.1 and version 138 for the manuscript.
+   (2)GREENGENES database (https://greengenes.secondgenome.com): we used version 13.5 for the manuscript.
+   (3)RDP database (http://rdp.cme.msu.edu): we used version 11.5 for the manuscript.
+   (4) Download the training set for RDP Classifier, we used 16S rRNA training set 16 for the manuscript. 
+       Can be dowloaded from https://sourceforge.net/projects/rdp-classifier/files/RDP_Classifier_TrainingData/RDPClassifier_16S_trainsetNo16_rawtrainingdata.zip. 
+
+####################################################################################################################
+<Installation guide>
+###Typical install time on a "normal" desktop computer: half day. Time is for installing dependent softwares, and our codes can be used without installation. 
+   (1) Copy the fold "BarBIQ_codes" containing all the codes to your computer which you will perform data analysis. 
+   (2) Install Perl (version 3.5.1) following the instruction at https://www.perl.org/get.html; install all the modules mentioned above.
+   (3) Install R (version 3.5.1) following the instruction at https://cran.r-project.org/src/base/R-3/; install the package mentioned above.
+   (4) Install nucleotide-sequence-clusterizer (Version 0.0.7) following the instruction at http://kirill-kryukov.com/study/tools/nucleotide-sequence-clusterizer/.
+   (5) Install bwa (version 0.7.15) following the instruction at http://bio-bwa.sourceforge.net.
+   (6) Install RDP Classifier following the instruction at http://rdp.cme.msu.edu/classifier/classifier.jsp.
+   (7) Set Environment Variables: let all the softwares and codes can be called directly (without path).
+       e.g., place below lines at the end of file ~/.bashrc:
+             export PATH="/your_directory/BarBIQ_codes:$PATH"
+   (8) Install 16S rRNA sequence database(s) (at least one of 8.1, 8.2 and 8.3 is required):
+       ## We provide a mock database in the Demo folder named as Mock_database.fasta, Mock_database.amb, Mock_database.ann, Mock_database.bwt, Mock_database.pac and Mock_database.sa; you may directly use them and skip the following steps for database preparation; note that the Bar sequences in the Demo dataset are not involved in the Mock_database, and the identification of Bar sequences is independent with any database (Database is only used for taxonomy annotation).
+       (8.1)Silva database
+            (8.1.1) Download 16s rRNA sequence database from Silva database (http://www.arb-silva.de/) as fasta format (we used version 123.1 and version 138 for the manuscript, e.g., SILVA_138_SSURef_NR99_tax_silva_trunc.fasta).
+            (8.1.2) Change U to T in all sequences: 
+                    ██Run██: BarBIQ_ref_U_to_T_fasta.pl SILVA_138_SSURef_NR99_tax_silva_trunc.fasta # (your download database).
+                     ▶▶▶Output▶▶▶: SILVA_138_SSURef_NR99_tax_silva_trunc_DNA.fasta
+            (8.1.3) selected sequences labeled as Bacteria: 
+                    ██Run██: BarBIQ_ref_select_Bacteria.pl SILVA_138_SSURef_NR99_tax_silva_trunc_DNA.fasta
+                    ▶▶▶Output▶▶▶: SILVA_138_SSURef_NR99_tax_silva_trunc_DNA_Bacteria.fasta
+       (8.2)GREENGENES database
+            (8.2.1) Download 16s rRNA sequence database and taxonomy file from GREENGENES database (https://greengenes.secondgenome.com) (we used version 13.5 for the manuscript; e.g., gg_13_5.fasta and gg_13_5_taxonomy.txt).
+            (8.2.2) Annotate 16s rRNA sequences by taxonomies:
+                    ██Run██: BarBIQ_ref_add_taxonomy.pl gg_13_5.fasta gg_13_5_taxonomy.txt 
+                    ▶▶▶Output▶▶▶: Taxonomy_gg_13_5.fasta
+       (8.3)RDP database
+            (8.3.1) Download 16s rRNA sequence database from RDP database (http://rdp.cme.msu.edu) as fasta format (we used version 11.5 for the manuscript; e.g., RDP_11_5_Bacteria_unaligned.fa).
+            (8.3.2) Format the taxonomies:
+                    ██Run██: BarBIQ_ref_RDP_clean.pl RDP_11_5_Bacteria_unaligned.fa
+                    ▶▶▶Output▶▶▶: Clean_RDP_11_5_Bacteria_unaligned.fa
+       (8.4)Make index files for bwa
+            ██Run██: bwa index [SILVA_138_SSURef_NR99_tax_silva_trunc_DNA.fasta or Taxonomy_gg_13_5.fasta or Clean_RDP_11_5_Bacteria_unaligned.fa] -p [output_filename_database (defined_by_you)]
+                    ▶▶▶Output▶▶▶:
+                           output_filename_database.amb
+                           output_filename_database.ann
+                           output_filename_database.bwt
+                           output_filename_database.pac
+                           output_filename_database.sa
+                    ▶▶▶▶▶▶▶▶▶▶▶▶
+
+
+####################################################################################################################
+<Demo>
+   (1)Test dataset
+      (1.1)Sample 1
+           Demo_sample1_S1_R1.fastq.gz  (read R1 of the sample 1)
+           Demo_sample1_S1_R2.fastq.gz  (read R2 of the sample 1)
+           Demo_sample1_S1_I1.fastq.gz  (read I2 of the sample 1)
+      (1.2)Sample 2
+           Demo_sample2_S2_R1.fastq.gz  (read R1 of the sample 2)
+           Demo_sample2_S2_R2.fastq.gz  (read R2 of the sample 2)
+           Demo_sample2_S2_I1.fastq.gz  (read I2 of the sample 2)
+      (1.3)Control 1 for removing the contaminations
+           Demo_control1_S3_R1.fastq.gz  (read R1 of the control 1)
+           Demo_control1_S3_R2.fastq.gz  (read R2 of the control 1)
+           Demo_control1_S3_I2.fastq.gz  (read I2 of the control 1)
+      (1.4)Control 2 for removing the contaminations
+           Demo_control2_S4_R1.fastq.gz  (read R1 of the control 2)
+           Demo_control2_S4_R2.fastq.gz  (read R2 of the control 2)
+           Demo_control2_S4_I2.fastq.gz  (read I2 of the control 2)
+      (1.5)Spike-in control 1 for sequencing 
+           SIC1_S5_R1.fastq.gz  (read R1 of the Spike-in control 1)
+      (1.6)Spike-in control 2 for sequencing 
+           SIC2_S6_R1.fastq.gz  (read R1 of the Spike-in control 2)
+   (2)Barcode information files
+      (2.1)BarBIQ_example_fixed_base.txt (The barcode sequence information you used for the samples, fixed base which will be used to filter the wrong barcodes should be written as exact base names, and others as ".")
+      (2.2)BarBIQ_example_fixed_base_std.txt (The barcode sequence information you used for the Spike-in controls, fixed bases which will be used to filter the wrong barcodes should be written as exact base names, and others as ".")
+   (3)Sample sheet file
+      BarBIQ_example_inputfile.txt (You should prepare your own sample-sheet-file based on your experiment, but should use the same format as this example file)
+   (4)An initial file for listing Bar-sequences
+      BarBIQ_example_Library (Can be an file only containing the column titles, or an Bar-sequences list from other experiment; our provided example file only contains the column titles)
+   (5)Total concentration for each sample
+      BarBIQ_example_Total_concentration.txt
+   (6)Estimated the confidence intervals of the log10(Poisson_Overlap) by simulation (see Supplementary Note 2 step 15)
+      simulation_overlap_AB_All_PV_5000_1500_up
+
+####################################################################################################################
+<Instructions for use>
+    A complete, detailed description of the code's functionality is shown in Supplementary Note 2 of the manuscript.
+    ####Expected run time for demo on a "normal" desktop computer: One day excluding the simulation step which need 2 days (see bellow 5.4). 
+_______________________________________________________________________________________________________________________
+   (1)Step 1: Clustering based on cellular barcodes
+      ██Run██: BarBIQ_M_R1.pl --in [BarBIQ_example_inputfile.txt] --out [output_filename_step1] {--middle [No or Yes] (this is an option, whether you want to keep all the intermediate files generated from each pipelines (Yes) or not (No), the default is No)}
+       ▶▶▶Output▶▶▶: 
+              output_filename_step1_S1  (clustered reads based on cellular barcodes (read R1) for sample S1);
+              output_filename_step1_S2  (clustered reads based on cellular barcodes (read R1) for sample S2);
+              output_filename_step1_S3  (clustered reads based on cellular barcodes (read R1) for control S3);
+              output_filename_step1_S4  (clustered reads based on cellular barcodes (read R1) for control S4);
+              output_filename_step1_S5  (clustered reads based on cellular barcodes (read R1) for Spike-in control S5; No further analysis);
+              output_filename_step1_S6  (clustered reads based on cellular barcodes (read R1) for Spike-in control S6; No further analysis);
+              output_filename_step1_S1_reads_per_barcode_aveReads_XXXX_NoB_YYYY (Number of reads in each cellular barcode cluster for sample S1. "XXXX" is averaged number of reads for all clusters; "YYYY" is total number of cellular barcode clusters)
+              output_filename_step1_S2_reads_per_barcode_aveReads_XXXX_NoB_YYYY (Number of reads in each cellular barcode cluster for sample S2. "XXXX" is averaged number of reads for all clusters; "YYYY" is total number of cellular barcode clusters)
+              output_filename_step1_S3_reads_per_barcode_aveReads_XXXX_NoB_YYYY (Number of reads in each cellular barcode cluster for control S3. "XXXX" is averaged number of reads for all clusters; "YYYY" is total number of cellular barcode clusters)
+              output_filename_step1_S4_reads_per_barcode_aveReads_XXXX_NoB_YYYY (Number of reads in each cellular barcode cluster for control S4. "XXXX" is averaged number of reads for all clusters; "YYYY" is total number of cellular barcode clusters)
+              output_filename_step1_S5_reads_per_barcode_aveReads_XXXX_NoB_YYYY (Number of reads in each cellular barcode cluster for Spike-in control S5. "XXXX" is averaged number of reads for all clusters; "YYYY" is total number of cellular barcode clusters)
+              output_filename_step1_S6_reads_per_barcode_aveReads_XXXX_NoB_YYYY (Number of reads in each cellular barcode cluster for Spike-in control S6. "XXXX" is averaged number of reads for all clusters; "YYYY" is total number of cellular barcode clusters)
+              output_filename_step1_I1_all_R1_ave_qual (average quality scores for two consecutive bases were calculated for all positions and all reads for read I1, and a suggested position for trimming the low-quality 3’ end is listed in the end of the file);
+              output_filename_step1_R2_all_R1_ave_qual (average quality scores for two consecutive bases were calculated for all positions and all reads for read R2, and a suggested position for trimming the low-quality 3’ end is listed in the end of the file);
+         ▶▶▶▶▶▶▶▶▶▶▶▶
+
+_______________________________________________________________________________________________________________________
+   (2)Step 2-10 (Apply for samples and controls, but not Spike-in controls):
+          Step 2: Trimming the low-quality 3’ end and the primer part of reads I1 and R2
+          Step 3: Clustering by 16S rRNA sequences (I1 and R2)
+          Step 4: Generating a representative sequence (RepSeq) for each SCluster
+          ① Correcting possible errors 1 (step 5)
+          Step 5: Correcting shifted RepSeqs
+          Step 6: Linking I1 and R2 RepSeqs
+          ② Correcting or removing possible errors 2 (steps 7–9)
+          Step 7: Correcting one insertion and deletion (1-Indel) RepSeqs
+          Step 8: Removing chimaeras
+          Step 9: Correcting other Indel-related errored RepSeqs
+          Step 10: Counting BClusters for each RepSeq in each index
+      ██Run██: BarBIQ_M_I1R2.pl --I1 [Sample1_S1_I1_Demo.fastq.gz (read I1 fastq file from Miseq)] --R2 [Sample1_S1_R2_Demo.fastq.gz (read R2 fastq file from Miseq)] --bar [output_filename_step1_S1 (see step 1)] --end-I1 [295(trimming site for read I1, see the end of output_filename_step1_I1_all_R1_ave_qual)] --end-R2 [281(trimming site for read R2, see the end of output_filename_step1_R2_all_R1_ave_qual)] --out [output_filename_step2-10_S1] {--middle [No or Yes] (this is an option, whether you want to keep all the intermediate files generated from each pipelines (Yes) or not (No), the default is No)}
+         ▶▶▶Output▶▶▶:
+             output_filename_step2-10_S1_clean_sub1_sub2_shift_link_derr_indels_chimeras_similar (A dataset containing all RepSeqs);
+             output_filename_step2-10_S1_clean_sub1_0.1_sub2_shift_link (A dataset containing all RepSeqs in the index which is only performed the processes of step 2 to step 5 and used 0.1 as threshold in the step 3.2, it will be used in step 15);
+             output_filename_step2-10_S1_clean_sub1_sub2_shift_link_derr_indels_chimeras_similar_statistic (A dataset containing all identified unique RepSeqs (RepSeq types) and the number of BClusters containing the given RepSeq type in the index)
+         ▶▶▶▶▶▶▶▶▶▶▶▶
+      ### Do the same analysis for indexes S2, S3, and S4.
+
+_______________________________________________________________________________________________________________________             
+    (3)Step 11-12:
+         ③Removing possible errors 3:
+         Step 11: Removing low-count RepSeq types
+         Step 12: Removing RepSeq types with single substitution errors
+           ██Run██: BarBIQ_final_repeat_no_junk_deletion.pl [output_filename_step2-10_S1_clean_sub1_sub2_shift_link_derr_indels_chimeras_similar_statistic] [output_filename_step12_S1] 
+              Output: output_filename_step12_S1_normalization (A dataset containing all identified unique RepSeqs (RepSeq types) and the number of BClusters containing the given RepSeq type in the index is normalized between replicate(s)       
+           ██Run██: BarBIQ_M_final_repeat.pl --in [output_filename_step12_S1_normalization] {--middle [No or Yes] (this is an option, whether you want to keep all the intermediate files generated from each pipelines (Yes) or not (No), the default is No)}
+              ▶▶▶Output▶▶▶: 
+                    output_filename_step12_S1_normalization_clean_del_low. (A dataset containing all identified unique RepSeqs (RepSeq types) and the number of BClusters containing the given RepSeq type in the index after Removing low-count RepSeq types and RepSeq types with single substitution errors)
+              ▶▶▶▶▶▶▶▶▶▶▶▶
+      ### Do the same analysis for index S2. (if index S1 and index S2 are the sampling replicates for the same sample, Run: BarBIQ_final_repeat_no_junk_deletion.pl [output_filename_step2-10_S1_clean_sub1_sub2_shift_link_derr_indels_chimeras_similar_statistic] [output_filename_step2-10_S2_clean_sub1_sub2_shift_link_derr_indels_chimeras_similar_statistic][output_filename_step11_S1_S2])
+
+_______________________________________________________________________________________________________________________
+    (4)Step 13 Naming RepSeq types as Bar sequences (in the pipeline, this step also includes the mapping of RepSeq types to a database):
+         ██Run██: BarBIQ_final_merge_all_repeats_files.pl [output_filename_step12_S1_normalization_clean_del_low] [output_filename_step12_S2_normalization_clean_del_low] [...] [...] (include all your samples if any) [output_filename_step13]
+             ▶▶▶Output▶▶▶: 
+              output_filename_step13 (Merged unique RepSeq types of all samples)
+         ▶▶▶▶▶▶▶▶▶▶▶▶
+         ██Run██: BarBIQ_M_final_mapping.pl --repeat [output_filename_step13] --ref [Mock_database or output_filename_database (one of the databases you prepared, see Installation guide)] --lib [BarBIQ_example_Library (See Demo)] --dataname [TEST (a name used to label the Bar-sequence ID, e.g., “TEST” in Bar-sequence-TEST-01)]
+             ▶▶▶Output▶▶▶: 
+              output_filename_step13_mapping_merge_deep (mapping information to the database for each RepSeq type; different mapping targets are considered as "undetermined:*" for each taxonomy level);
+              output_filename_step13_names (a dataset of all RepSeq types identified from all samples and named as Bar-sequences with an ID);
+              BarBIQ_example_Library (updated; a dataset containing all Bar-sequences identified from all samples, and including the taxonomy annotations from the mapping);
+              BarBIQ_example_Library_achive (The original version of BarBIQ_example_Library);
+              & some intermediate files (explained in the code annotation).
+             ▶▶▶▶▶▶▶▶▶▶▶▶
+
+_______________________________________________________________________________________________________________________
+    (5)Step 14 Retrieving false-negative RepSeq types
+       Step 15 Identifying multiple Bar sequences from the same bacterium
+       (5.1) Retrieve false-negative RepSeq types and statistic multiple RepSeqs which share the same cellular Barcode for each index        
+         ██Run██: BarBIQ_M_final_review_overlap.pl --in [output_filename_step2-10_S1_clean_sub1_0.1_sub2_shift_link (see step 2-10)] --repeat [output_filename_step13_names (see step 13)]
+             ▶▶▶Output▶▶▶: output_filename_step2-10_S1_clean_sub1_0.1_sub2_shift_link_Rev_DropOver (statistics of RepSeqs which share the same cellular Barcode)
+         ### Do the same analysis for index S2
+       _____________________________________________________________________________________________________________
+       (5.2) Merge datasets of all samples:
+         ██Run██: BarBIQ_final_repeat_overlap_seq.pl [output_filename_step2-10_S1_clean_sub1_0.1_sub2_shift_link_Rev_DropOver][output_filename_step2-10_S2_clean_sub1_0.1_sub2_shift_link_Rev_DropOver] [...] [...] (include all your samples if any) [output_filename_step15]
+             ▶▶▶Output▶▶▶:output_filename_step15
+       _____________________________________________________________________________________________________________
+       (5.3)Estimate the operational droplet (OD):
+         ██Run██: BarBIQ_final_fitting_OD.r (It is an r code!!!Before running, change the path of the file output_filename_step15 and indexes you will analyze in the code)
+             ▶▶▶Output▶▶▶: EDrops.txt (Estimated operational droplet (OD, labeled as "EDrop") of each sample and the standard error (labeled as "SE") from fitting)
+       _____________________________________________________________________________________________________________
+       (5.4)Estimate the confidence intervals of the log10(Poisson_Overlap) by simulation (The simulated results can be used for different experiments; this step will take two days on our computer and we also provide our simulated result here for your using, see Demo):
+         ██Run██: BarBIQ_add_Simulation_overlap_AB_Poisson.pl
+             ▶▶▶Output▶▶▶: simulation_overlap_AB_All_PV_5000_1500
+         ██Run██: BarBIQ_add_Simulation_overlap_up999.pl [simulation_overlap_AB_All_PV_5000_1500]
+             ▶▶▶Output▶▶▶: simulation_overlap_AB_All_PV_5000_1500_up (Estimate the confidence intervals of the log10(Poisson_Overlap))
+       _____________________________________________________________________________________________________________
+       (5.5)Identify multiple Bar sequences from the same bacterium
+         ██Run██: BarBIQ_M_final_groups.pl --overlap [output_filename_step15] --PV [simulation_overlap_AB_eq_PV_5000_1500_up] --EDrop [EDrops.txt] --lib BarBIQ_example_Library
+             ▶▶▶Output▶▶▶: BarBIQ_example_Library_COTU (updated the cOTU IDs for each Bar-sequence)
+                     output_filename_step15_select_groups_COTU_seq_names (A list of cOTUs which containing multiple Bar-sequences and their information of mapping to the database)
+                     output_filename_step15_select_groups_COTU (A list of cOTUs which containing multiple Bar-sequences)
+                     BarBIQ_example_Library_COTU (a dataset containing all Bar-sequences identified from all samples, added cOTU information);
+                     & some intermediate files (explained in the code annotation).
+             ▶▶▶▶▶▶▶▶▶▶▶▶
+
+_______________________________________________________________________________________________________________________
+     (6)Step 16 Counting the number of cells for each cOTU:
+         ██Run██: BarBIQ_M_final_count_bacteria.pl --in [output_filename_step2-10_S1_clean_sub1_sub2_shift_link_derr_indels_chimeras_similar(see step2-10)] --repeat [output_filename_step13_names (see step 13)] --COTU [BarBIQ_example_Library_COTU (see up)] {--middle [No or Yes] (this is an option, whether you want to keep all the intermediate files generated from each pipelines (Yes) or not (No), the default is No)}
+            ▶▶▶Output▶▶▶: output_filename_step2-10_S1_clean_sub1_sub2_shift_link_derr_indels_chimeras_similar_Rev_ID_bac_count (list of the number of cells for each cOTU)
+        ### Do the same analysis for indexes S2, S3, and S4.
+
+_______________________________________________________________________________________________________________________
+     (7)Step 17 Removing contaminated cOTUs:
+        (7.1) Merge the samples and controls (e.g., empty tube followed all the library preparation) which was done at the same time:
+          ██Run██: BarBIQ_final_compare_bacteria_count.pl [output_filename_step2-10_S1_clean_sub1_sub2_shift_link_derr_indels_chimeras_similar_Rev_ID_bac_count (sample1)] [output_filename_step2-10_S2_clean_sub1_sub2_shift_link_derr_indels_chimeras_similar_Rev_ID_bac_count (sample2)][output_filename_step2-10_S3_clean_sub1_sub2_shift_link_derr_indels_chimeras_similar_Rev_ID_bac_count (control 1)] [output_filename_step2-10_S4_clean_sub1_sub2_shift_link_derr_indels_chimeras_similar_Rev_ID_bac_count (control 2)] [output_filename_step17]
+             ▶▶▶Output▶▶▶: 
+                  output_filename_step17 (cell counts for each index)
+                  output_filename_step17_IF (need to be modified before next step, label the control as "Blank" and the sample as its sample name; if two indexes are sampling replicates of the same sample, label them using the same name, the counts will be averaged from replicates, see example_output_filename_step17_IF in the Demo).
+             ▶▶▶▶▶▶▶▶▶▶▶▶
+        _____________________________________________________________________________________________________________
+        (7.2) Removing contaminated cOTUs:
+           ██Run██: BarBIQ_final_review_contamination_bac_123rep.pl --in [output_filename_step17] --IF [example_output_filename_step17_IF]
+             ▶▶▶Output▶▶▶: output_filename_step17_ave_del_contamination (Cell counts of cOTUs for each sample)
+        _____________________________________________________________________________________________________________
+        (7.3) Merge all datasets measure at different time:
+           ██Run██: BarBIQ_final_compare_datasets.pl [output_filename_step17_ave_del_contamination] [...] [...] [...] (all datasets you want to compare) [output_filename_step17_2]
+             ▶▶▶Output▶▶▶: output_filename_step17_2 (Cell counts of cOTUs for all samples you want to compare)
+        _____________________________________________________________________________________________________________
+        (7.4)Remove the contaminated cOTUs from the list of Bar-sequences:
+           ██Run██: BarBIQ_final_lib_COTU_clean.pl --bcc [output_filename_step17_2] --COTULIB [BarBIQ_example_Library_COTU (see step 15)]
+             ▶▶▶Output▶▶▶: BarBIQ_example_Library_COTU_clean (Final dataset of Bar sequences with cOTU information and without contaminations)
+
+_______________________________________________________________________________________________________________________
+     (8)Step 18 Taxonomy annotation:
+        (8.1) Annotate using the mapped results by bwa:
+            ██Run██: BarBIQ_final_add_mapping_results_bac_counting.pl --in [output_filename_step17_2 (see step 17)] --lib [BarBIQ_example_Library_COTU_clean (see step 17)] --group [output_filename_step15_select_groups_COTU_seq_names (see step 15)]
+               ▶▶▶Output▶▶▶: output_filename_step17_2_mapping (Dataset of cell counts of cOTUs with taxonomy annotation from mapping)
+        _____________________________________________________________________________________________________________
+        (8.2) Annotate using the predicted results by RDP classifier
+           (8.2.1) Prepare Bar-sequences file:
+              ██Run██: BarBIQ_final_LIB_fastafile.pl --lib [BarBIQ_example_Library_COTU_clean (see step 17)]
+                 ▶▶▶Output▶▶▶: BarBIQ_example_Library_COTU_clean.fa
+           (8.2.2) Predict the taxonomies of each Bar-Sequence using RDP classifier:
+              ██Run██: java -jar classifier.jar classify -t [training set (Installation guide)] -c [0.5] -o [output_filename_step18] [BarBIQ_example_Library_COTU_clean.fa]
+                 ▶▶▶Output▶▶▶: output_filename_step18 (Predicted results)
+           (8.2.3) Annotate taxonomies for cOTUs:
+              ██Run██: BarBIQ_M_final_add_RDP_prediction_Taxonomy_to_bac_count.pl --taxa [output_filename_step18] --group [output_filename_step15_select_groups_COTU (see step 15)] --lib [BarBIQ_example_Library_COTU_clean (see step 17)] --bacc [output_filename_step17_2 (see step 17)]
+                 ▶▶▶Output▶▶▶: 
+                       output_filename_step17_2_annotation_RDP_classifier.txt (Dataset of cell counts of cOTUs with predicted taxonomy annotation)
+                       output_filename_step15_select_groups_COTU_RDPpdt_taxonomy (Predicted taxonomy annotation for cOTUs which contain multiple Bar sequences)
+                 ▶▶▶▶▶▶▶▶▶▶▶▶
+
+_______________________________________________________________________________________________________________________
+     (9)Absolute concentration calculation and the final dataset:
+         ██Run██: BarBIQ_final_bac_con_nomalization_xlsx.pl --count [output_filename_step17_2_annotation_RDP_classifier.txt (or output_filename_step17_2_mapping if you want to use the mapping results instead of the predicted results for taxonomies)] --total [BarBIQ_example_Total_concentration.txt (measured total concentration of each sample)] --out [output_filename_final.xlsx] --taxa [RDP/GG/Silva/Classifier (where you obtained the taxonomies)]
+           ▶▶▶Output▶▶▶: output_filename_final.xlsx (Final dataset of cellular concentration, proportional concentration, and raw cell counts of each cOTU)
+
+####################################################################################################################
+
+
+
+
+
