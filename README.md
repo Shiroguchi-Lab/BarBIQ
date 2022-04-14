@@ -21,4 +21,4 @@ see guideline_for_BarBIQ_Pipeline.txt
 Instructions for use and demo and explanation for each step, please see guideline_for_BarBIQ_Pipeline.txt
 
 ## Article of BarBIQ method 
-[High-throughput identification and quantification of single bacterial cells in the microbiota](https://rdcu.be/cLinB). Nat Commun 13, 863 (2022)
+[High-throughput identification and quantification of single bacterial cells in the microbiota](https://www.nature.com/articles/s41467-022-28426-1). Nat Commun 13, 863 (2022)
